@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Liquid Strata — 積もる生命</title>
+<meta name="description" content="ライフゲームが阿蘇の地層を積む。積もる生命／地層の習作。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="LIQUID STRATA — 積もる生命 ／ 地層の習作">
+<meta property="og:description" content="ライフゲームが阿蘇の地層を積む。大火砕流、カルデラ、湖の決壊、中央火口丘、熊本へ流れる地下水。">
+<meta property="og:url" content="https://unnameable-lab.github.io/unnameable-lab-liquid-strata/">
+<meta property="og:image" content="https://unnameable-lab.github.io/unnameable-lab-liquid-strata/ogp.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="LIQUID STRATA — 積もる生命 ／ 地層の習作">
+<meta name="twitter:description" content="ライフゲームが阿蘇の地層を積む。">
+<meta name="twitter:image" content="https://unnameable-lab.github.io/unnameable-lab-liquid-strata/ogp.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* VOICE: 暗室で見る地質断面図。説明は最小限
+   IDEA: 平面図と断面図。上でライフゲームが生き、下にその時間が地層として積もる
+   PICTURE: 全画面WebGL。上3割が平面（星のようなセル）、下7割が瑪瑙のような断面
+   COLOUR and TYPE: 黒い水＋土色に干渉色の縞。Shippori Mincho＋Zen Kaku Gothic New
+   LAYOUT: 全画面キャンバス、下に細い操作帯、没入で全部消す */
+:root{color-scheme:dark;--ink:#e9e6df;--dim:#9a968e;--line:rgba(255,255,255,.14)}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%;background:#000;color:var(--ink);overflow:hidden;font:14px/1.5 "Zen Kaku Gothic New",system-ui,sans-serif}
+#stage{position:fixed;top:0;bottom:0;left:50%;width:100vw;transform:translateX(-50%);overflow:hidden}
+@media(min-aspect-ratio:4/5){#stage{width:max(360px,70vh)}}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#start{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(20,16,12,.6),rgba(0,0,0,.88));cursor:pointer;z-index:5;text-align:center;padding:24px}
+#start h1{font:500 clamp(30px,7vw,52px)/1.1 "Shippori Mincho",serif;margin:0 0 8px;letter-spacing:.04em}
+#start p{margin:4px 0;color:var(--dim)}
+#start .go{margin-top:22px;display:inline-block;border:1px solid var(--line);padding:12px 26px;border-radius:999px;color:var(--ink)}
+.hud{position:fixed;left:max(12px,env(safe-area-inset-left));color:var(--dim);font-size:13px;pointer-events:none;z-index:2;transition:opacity .4s;background:rgba(0,0,0,.62);padding:2px 8px;border-radius:4px;color:#d6d2c9}
+#h1{top:calc(10px + env(safe-area-inset-top))}
+#h4{color:#8fd9ee}
+#gen{font-size:16px;color:#fff;font-weight:500}
+#ticks{position:fixed;inset:0;pointer-events:none;z-index:2;transition:opacity .4s}
+#ticks div{position:absolute;right:0;transform:translateY(-50%);font-size:11px;line-height:1;color:#e9e6df;background:rgba(0,0,0,.6);padding:3px 6px 3px 4px;border-radius:3px 0 0 3px;white-space:nowrap;display:none}
+#ticks div::before{content:"";display:inline-block;width:14px;border-top:1px solid currentColor;vertical-align:middle;margin-right:5px}
+#ticks div.ev{color:#ffb27a}
+#h3{left:auto;right:max(12px,env(safe-area-inset-right));color:#d9c39a}
+#help{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;place-items:center;z-index:6;padding:20px;overflow:auto}
+#help.on{display:grid}
+#help div{max-width:520px}
+#help h2{font:500 22px/1.2 "Shippori Mincho",serif;margin:0 0 12px}
+#help dt{color:#d9c39a;margin-top:10px}
+#help dd{margin:2px 0 0;color:var(--ink)}
+#help button{margin-top:18px}
+.off{opacity:0!important;pointer-events:none!important}
+#bar{position:fixed;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:10px max(14px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));background:linear-gradient(transparent,rgba(0,0,0,.8));transition:opacity .4s;z-index:3}
+#bar .ttl{font-family:"Shippori Mincho",serif;font-size:15px;margin-right:auto;white-space:nowrap}
+button{font:inherit;color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:999px;min-height:40px;padding:0 14px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2px}
+button.rec{color:#ff6b6b}
+label{display:flex;align-items:center;gap:8px;color:var(--dim);white-space:nowrap}
+input[type=range]{width:96px;accent-color:#ddd}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;place-items:center;z-index:6;padding:20px}
+#modal.on{display:grid}
+#modal div{max-width:min(520px,100%);text-align:center}
+#modal video{max-width:100%;max-height:65vh;border:1px solid var(--line)}
+#modal p{color:var(--dim)}
+#msg{position:fixed;top:calc(40px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);color:var(--ink);font-size:13px;pointer-events:none;transition:opacity .6s;opacity:0;z-index:4;text-shadow:0 0 6px #000;white-space:nowrap}
+@media(max-width:600px){#bar .ttl{width:100%}input[type=range]{width:72px}}
+</style>
+</head>
+<body>
+<div id="stage">
+<canvas id="cv"></canvas>
+<div id="h1" class="hud">平面：上から見たライフゲーム ― 第 <span id="gen">0</span> 世代</div>
+<div id="h3" class="hud">この帯のセルが砂になって真下に落ちる ↓</div>
+<div id="ticks"></div>
+<div id="h4" class="hud">← 熊本へ　澄んだ湧水</div>
+<div id="h2" class="hud">断面（下ほど古い）― <span id="ph">噴火前</span></div>
+<div id="start">
+  <div>
+    <h1>Liquid Strata</h1>
+    <p>積もる生命 ／ 地層の習作</p>
+    <p>上はライフゲーム（B3/S23）。下端の帯にいるセルが、砂になって落ちて地層になる</p>
+    <span class="go">タップで開始（音が出ます）</span>
+  </div>
+</div>
+<div id="bar">
+  <span class="ttl">Liquid Strata — 積もる生命</span>
+  <button id="bPlay">▶ 音</button>
+  <label>世代<input id="sSpd" type="range" min="1" max="30" value="10"></label>
+  <label>出水<input id="sFlow" type="range" min="0" max="250" value="100"></label>
+  <button id="bFF">▶▶ ×1</button>
+  <button id="bSeed">種まき</button>
+  <button id="bReset">リセット</button>
+  <button id="bRec">● 録画</button>
+  <button id="bImm">没入</button>
+  <button id="bHelp">説明</button>
+</div>
+<div id="msg"></div>
+<div id="help"><div>
+<h2>何が起きているか</h2>
+<dl>
+<dt>上（平面）</dt><dd>ライフゲーム（B3/S23）を真上から見た図です。白い点が生きているセルで、1世代ごとに生まれたり死んだりします。</dd>
+<dt>平面の下端の帯</dt><dd>幅7セルの帯で、断面のすぐ上にあります。地層に記録されるのは、この帯の中にいるセルだけです。帯の外のセルは、帯に入ってくるまで地層には関係しません。</dd>
+<dt>下（断面）</dt><dd>切断帯の真下を縦に切った図です。1世代ごとに、帯にセルがいた位置から砂粒が落ちて積もります。セルがいない所にはほとんど積もりません。下ほど古く、上ほど新しい世代です。</dd>
+<dt>色</dt><dd>黒はセルがいなかった時の黒ボク土、褐色はローム、橙から淡黄はセルが多かった時や出水で運ばれた軽石・スコリアの層です。最下部の暗灰色は古い溶岩流で、縦の筋は柱状節理、赤い帯は溶岩の上面が砕けて酸化したクリンカーです。</dd>
+<dt>阿蘇の筋書き</dt><dd>阿蘇の変遷をなぞって、決まった世代で事件が起きます。大火砕流が4回（Aso-1〜4）あり、そのたびに全面が厚い溶結凝灰岩で埋まり、セルは全滅し、中央が陥没してカルデラが広がります。その後カルデラに湖ができ、縁が切れて湖が一気に抜け、最後に中央火口丘が育ちます。年代や形を再現したものではありません。</dd>
+<dt>火山の色</dt><dd>火砕流の層は、暗く縦筋と黒いレンズが入った溶結部と、その上下の淡い非溶結部（軽石まじり）に分かれます。淡い縞は湖の堆積物、赤黒い粒はスコリア、黒い薄層は火山灰です。</dd>
+<dt>地下水</dt><dd>地表から染みこんだ水（褐色の点）が、軽石や非溶結部、クリンカー、節理など水を通しやすい層を選んで左（西、熊本の側）へ流れます。左へ進むほど濁りが抜けて青く澄み、左端で湧き出します。溶結部や湖成層のような緻密な層はほとんど通りません。</dd>
+<dt>右端の目盛り</dt><dd>右端の位置で、その世代のときの地表がどの高さだったかを示します。100世代ごとの目盛りと、Aso-1などの事件の目盛り（橙）があります。あとで削られた目盛りは消えます。</dd>
+<dt>出水</dt><dd>曲の低音で起きます。高い所を削り、削った分を下流に積み直します。</dd>
+<dt>操作</dt><dd>上をなぞると種まき、下をなぞると地層を削れます。▶▶は早送りです。</dd>
+</dl>
+<button id="bHelpClose">閉じる</button>
+</div></div>
+<div id="modal"><div><video id="vid" controls playsinline></video><p>保存できないときは、動画を長押し／右クリックしてください</p><a id="dl" download="liquid-strata.mp4" style="display:inline-block;margin-right:10px;color:#e9e6df;border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:9px 16px;text-decoration:none">保存</a><button id="bClose">閉じる</button></div></div>
+</div>
+<audio id="au" src="music.mp3" loop preload="auto"></audio>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const cv=$('cv');
+const gl=cv.getContext('webgl2',{antialias:false,alpha:false});
+const msg=t=>{const m=$('msg');m.textContent=t;m.style.opacity=1;clearTimeout(msg.h);msg.h=setTimeout(()=>m.style.opacity=0,2400)};
+if(!gl){$('start').innerHTML='<div><h1>Liquid Strata</h1><p>このブラウザはWebGL2に対応していません</p></div>';throw 0}
+
+const VS=`#version 300 es
+void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.-1.,0,1);}`;
+const FS=`#version 300 es
+precision highp float;precision highp sampler2D;
+out vec4 o;
+uniform sampler2D uSec,uH,uLife;
+uniform vec2 uRes,uLRes,uView,uBand;
+uniform float uPf,uTH,uSW,uT,uF,uDir,uHigh,uVent,uFront,uEr,uLake;uniform vec2 uCal;
+float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+1.),f.x),f.y);}
+float hgt(float x){float fx=x*uSW-.5;int n=int(uSW);int i=int(floor(fx));float f=fx-floor(fx);
+ float a=texelFetch(uH,ivec2((i+n)%n,0),0).r,b=texelFetch(uH,ivec2((i+1+n)%n,0),0).r;return mix(a,b,f);}
+vec4 sec(float x,float e){return texture(uSec,vec2(x,fract(e/uTH)));}
+void main(){
+ vec2 uv=gl_FragCoord.xy/uRes;float ys=1.-uPf;vec3 col;
+ if(uv.y<ys){
+  float x=uv.x,sy=uv.y/ys;float er=sy*uView.y;float h=hgt(x);
+  if(er<h){
+   float e=uView.x+min(er,h-.6);
+   vec4 m=sec(x,e);
+   vec2 sc=m.rb*2.-1.;float ph=atan(sc.x,sc.y);
+   float gr=m.g,bi=m.a;
+   float gx=sec(x+1./uSW,e).g-sec(x-1./uSW,e).g,gy=sec(x,e-1.).g-sec(x,e+1.).g;
+   float shade=clamp(1.+gx*1.3+gy*1.8,.45,1.7);
+   float amp=length(sc);
+   vec3 base=mix(vec3(.04,.035,.03),vec3(.23,.14,.075),smoothstep(.12,.42,gr));
+   base=mix(base,vec3(.60,.36,.13),smoothstep(.40,.68,gr));
+   base=mix(base,vec3(.82,.72,.44),smoothstep(.78,.96,gr));
+   base=mix(base,base*vec3(1.25,.85,.6),smoothstep(.6,1.,.5+.5*cos(ph))*.5);
+   float lam=.82+.18*cos(ph*5.);
+   float ft=(ph+3.14159)/6.28318;
+   float jn=smoothstep(.07,.02,fract(x*uSW*.17+.35*sin(e*.05)));
+   float ves=step(.93,hash(floor(vec2(x*uSW*1.5,e*1.5))));
+   vec3 lava=vec3(.125,.125,.135)*(.8+.3*vn(vec2(x*uSW*.08,e*.5)))*(1.-.55*jn)-ves*.05;
+   vec3 clk=mix(vec3(.30,.12,.08),vec3(.12,.07,.06),step(.5,hash(floor(vec2(x*uSW*.7,e*.9)))))*(.8+.5*hash(floor(vec2(x*uSW*1.3,e*1.3))+9.));
+   lava=mix(lava,clk,smoothstep(.76,.82,ft));
+   lava=mix(lava,vec3(.42,.16,.08),smoothstep(.05,.0,ft)*.8);
+   float bw=smoothstep(.55,.8,amp);
+   float perm=mix(.2+.8*smoothstep(.76,.82,ft)+.6*jn,.2+.8*smoothstep(.15,.7,gr),bw);
+   base=mix(lava,base*lam,bw);
+   vec2 vg=vec2(x*uSW,e);vec2 vc=fract(vg)-.5;float hs=hash(floor(vg));
+   int id=int(texelFetch(uSec,ivec2(min(int(x*uSW),int(uSW)-1),int(mod(floor(e),uTH))),0).a*4.+.5);
+   float sp=hash(floor(gl_FragCoord.xy/2.)+3.);
+   if(id==1){float fi=vn(vec2(x*uSW*.3,e*1.7));float wd=smoothstep(.55,.72,gr);
+    vec3 tint=.85+.25*cos(ph+vec3(0.,.6,1.2));
+    vec3 nw=vec3(.64,.52,.42)*tint;nw=mix(nw,vec3(.86,.82,.72),step(.9,hs));
+    vec3 we=vec3(.27,.225,.215)*tint;we=mix(we,vec3(.06,.055,.06),smoothstep(.58,.68,fi));
+    we*=1.-.5*smoothstep(.08,.02,fract(x*uSW*.2+.25*sin(e*.04+ph)));
+    base=mix(nw,we,wd);shade=1.;perm=1.-.8*wd;}
+   else if(id==2){base=mix(vec3(.24,.075,.05),vec3(.05,.045,.045),step(.5,hs))*(.8+.4*sp);shade=mix(1.,shade,.3);perm=1.;}
+   else if(id==3){base=vec3(.60,.59,.50)*(.8+.2*cos(ph*3.));perm=.12;}
+   else if(id==4){base=vec3(.05,.045,.04);}
+   else base+=smoothstep(.8,1.,gr)*step(.9,sp)*vec3(.35,.33,.28);
+   col=base*shade*(.9+.2*hash(floor(gl_FragCoord.xy/1.5)));
+   float d=h-er;
+   col*=mix(.5,1.,smoothstep(0.,.45,sy));
+   vec2 qi=vec2(x*uSW*.5,e*.3+uT*5.);
+   col+=step(.88,hash(floor(qi)))*exp(-pow(fract(qi.x)-.5,2.)*22.)*smoothstep(.45,0.,abs(fract(qi.y)-.5))*perm*smoothstep(42.,6.,d)*(.5+uF)*vec3(.40,.33,.20);
+   float sat=smoothstep(16.,38.,d);
+   vec2 qf=vec2(x*uSW*.14+uT*(1.+2.2*perm),e*.45);vec2 f2=fract(qf)-.5;
+   vec3 wc=mix(vec3(.12,.78,1.),vec3(.55,.42,.24),smoothstep(.1,.9,x));
+   col=mix(col,col*vec3(.55,.9,1.15)+vec3(0.,.02,.04),sat*perm*(1.-x)*.55);
+   col+=step(.5,hash(floor(qf)))*exp(-f2.x*f2.x*4.-f2.y*f2.y*14.)*perm*sat*wc*(1.1+1.2*(1.-x));
+   col+=exp(-x*38.)*sat*perm*vec3(.08,.42,.6);
+   col+=exp(-d*.35)*(.06+.2*uF)*vec3(.55,.45,.32);
+  }else{
+   float d=er-h;
+   col=vec3(.004,.010,.022);
+   float st=vn(vec2(x*26.-uDir*uT*(.3+3.5*uF),er*.14));
+   col+=uF*exp(-d/38.)*st*vec3(.16,.115,.065);
+   col+=exp(-d*.9)*vec3(.20,.17,.13);
+   float dv=abs(x-uVent);
+   col+=uEr*exp(-pow(dv*26.,2.))*(.4+.6*vn(vec2(x*40.,er*.06-uT*2.5)))*vec3(1.,.5,.2)*(.35+.65*exp(-d/90.));
+   if(uFront>0.){float cl=vn(vec2(x*20.-sign(x-uVent)*uT*3.,er*.07-uT*.8));
+    col+=step(dv,uFront)*uEr*cl*exp(-d/50.)*vec3(.55,.40,.31);
+    col+=uEr*exp(-pow((dv-uFront)*35.,2.))*exp(-d/70.)*vec3(1.,.6,.3);}
+   if(er<uLake&&abs(x-uCal.x)<uCal.y){col=mix(col,vec3(.015,.06,.09),.85);col+=exp(-(uLake-er)*.8)*vec3(.10,.16,.20);}
+   col+=exp(-x*45.)*exp(-d/14.)*vec3(.08,.40,.55);
+   float cx=x*uSW;float nb=0.;
+   for(int j=0;j<7;j++)nb+=step(.25,texture(uLife,vec2((floor(cx)+.5)/uSW,(float(j)+.5)/uLRes.y)).r);
+   float fxx=fract(cx)-.5;float fall=fract((er+uT*70.)/22.+hash(vec2(floor(cx),3.)));
+   col+=min(nb,3.)*exp(-fxx*fxx*10.)*smoothstep(.2,0.,fall)*vec3(.6,.48,.28);
+   vec2 q=vec2(x*uRes.x/uRes.y*70.+uDir*uT*uF*4.,er*.55+uT*1.6);
+   vec2 qc=fract(q)-.5;float qh=hash(floor(q));
+   col+=step(.93,qh)*exp(-dot(qc,qc)*40.)*.22*vec3(.8,.85,1.);
+  }
+  col*=smoothstep(0.,.006,ys-uv.y);
+ }else{
+  vec2 p=vec2(uv.x,(uv.y-ys)/uPf);
+  vec2 g=p*uLRes;vec2 fc=fract(g)-.5;float c=texture(uLife,(floor(g)+.5)/uLRes).r;
+  float inb=step(uBand.x,p.y)*step(p.y,uBand.y);
+  col=vec3(.004,.008,.018)+inb*vec3(.018,.014,.008);
+  float eb=min(abs(p.y-uBand.x),abs(p.y-uBand.y))*uPf*uRes.y;
+  col+=exp(-eb*eb*.5)*vec3(.16,.13,.08);
+  col+=uF*.03*vn(vec2(p.x*30.-uDir*uT*3.,p.y*60.))*vec3(.6,.5,.35);
+  float dvp=abs(p.x-uVent);
+  col+=uEr*exp(-pow((dvp-uFront)*30.,2.))*step(.001,uFront)*vec3(1.,.6,.3);
+  col+=uEr*step(dvp,uFront)*.07*vn(vec2(p.x*30.,p.y*30.-uT))*vec3(.9,.65,.5);
+  float dm=exp(-dot(fc,fc)*13.);
+  float alive=step(.25,c),born=step(.75,c);
+  vec3 tint=mix(vec3(.75,.85,1.),vec3(1.,.86,.62),inb);
+  col+=alive*dm*(.5+.5*uHigh+.3*inb)*tint+born*dm*.7;
+ }
+ vec2 q=uv-.5;col*=1.-.4*dot(q,q);
+ col=col/(1.+col*.5);col=pow(col,vec3(.4545));
+ col+=(hash(gl_FragCoord.xy+uT)-.5)*.016;
+ o=vec4(col,1.);
+}`;
+const prog=gl.createProgram();
+for(const [t,s] of [[gl.VERTEX_SHADER,VS],[gl.FRAGMENT_SHADER,FS]]){const sh=gl.createShader(t);gl.shaderSource(sh,s);gl.compileShader(sh);
+ if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(sh));gl.attachShader(prog,sh);}
+gl.linkProgram(prog);gl.useProgram(prog);
+const uloc={};const U=n=>n in uloc?uloc[n]:(uloc[n]=gl.getUniformLocation(prog,n));
+gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
+function mkTex(unit,filt,wrap){const t=gl.createTexture();gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,filt);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,filt);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,wrap);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,wrap);return t;}
+
+/* ---- state ---- */
+const SW=320,TH=1024,BAND=3;
+const sec=new Uint8Array(SW*TH*4),h=new Float32Array(SW),hrel=new Float32Array(SW),hs=new Float32Array(SW);
+const cnt=new Uint8Array(SW),brn=new Uint8Array(SW);
+const tSec=mkTex(0,gl.LINEAR,gl.REPEAT);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,SW,TH,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+const tH=mkTex(1,gl.NEAREST,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,SW,1,0,gl.RED,gl.FLOAT,null);
+const tL=mkTex(2,gl.NEAREST,gl.REPEAT);
+let VW=innerWidth,VL=0;const measure=()=>{const r=$('stage').getBoundingClientRect();VW=r.width;VL=r.left};
+let LW=SW,LH=96,A,B,Lpix,pf=.2,VH=400,asp=1,cy=48;
+let AMP=120,ff=1,lastF=0;
+const ASO=[{g:150,R:50,D:20,T:8},{g:420,R:65,D:26,T:10},{g:690,R:80,D:30,T:11},{g:960,R:96,D:42,T:15}],XC=SW>>1,sec32=new Uint32Array(sec.buffer),dropRem=new Float32Array(SW);
+const XR=SW-8,TK=[];let marks=[];
+const mark=(t,ev)=>{marks.push({e:h[XR],t,ev});if(marks.length>90)marks.shift()};
+let phase='quiet',ei=0,pt=0,front=0,lake=-1e9,calR=0,xv=XC,erI=0,xb=0,floorL=0,rimL=0,ci=0,full=false,lvl=0;let gen=0,load=0,dir=1,dMin=1e9,dMax=-1e9,viewTop=0;
+const mod=(a,n)=>((a%n)+n)%n;
+function write(x,e,ph,gr,bi,keep){const i=(mod(e,TH)*SW+x)*4;
+ sec[i]=127+AMP*Math.sin(ph);sec[i+2]=127+AMP*Math.cos(ph);sec[i+1]=gr;sec[i+3]=bi;
+ if(e<dMin)dMin=e;if(e>dMax)dMax=e;}
+function add(x,amt,ph,gr,bi){if(amt<=0)return;const a=Math.floor(h[x]);h[x]+=amt;const b=Math.floor(h[x]);
+ for(let e=a;e<=b;e++)write(x,e,ph,gr,bi,e===a);}
+function rows(r0,n){gl.texSubImage2D(gl.TEXTURE_2D,0,0,r0,SW,n,gl.RGBA,gl.UNSIGNED_BYTE,sec.subarray(r0*SW*4,(r0+n)*SW*4));}
+function flush(){if(dMax<dMin&&!full)return;gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tSec);
+ if(full){rows(0,TH);full=false;dMin=1e9;dMax=-1e9;return}
+ if(dMax-dMin+1>=TH)rows(0,TH);else{const a=mod(dMin,TH),b=mod(dMax,TH);if(a<=b)rows(a,b-a+1);else{rows(a,TH-a);rows(0,b+1)}}
+ dMin=1e9;dMax=-1e9;}
+function bedrock(){AMP=55;for(let x=0;x<SW;x++){const hb=170+18*Math.sin(x*.031)+10*Math.sin(x*.011+1);
+  for(let e=Math.floor(hb)-TH+1;e<=Math.floor(hb);e++)write(x,e,e*.11+x*.045+1.5*Math.sin(x*.02+e*.004),55+Math.random()*35,0,false);
+  h[x]=hb;}
+ AMP=120;gen=0;load=0;marks=[];phase='quiet';ei=0;pt=0;front=0;lake=-1e9;calR=0;xv=XC;erI=0;ci=0;flush();viewTop=Math.max(...h)+VH*.14;}
+function seedPatch(cx,cyy,r,p){for(let j=-r;j<=r;j++)for(let i=-r;i<=r;i++)if(i*i+j*j<=r*r&&Math.random()<p)A[mod(cyy+j,LH)*LW+mod(cx+i,LW)]=2;}
+function buildLife(){measure();const W=VW,H=innerHeight;asp=W/H;pf=asp<1?.2:.24;
+ LH=Math.max(40,Math.min(200,Math.round(LW*pf*H/W)));cy=BAND;
+ A=new Uint8Array(LW*LH);B=new Uint8Array(LW*LH);Lpix=new Uint8Array(LW*LH);
+ for(let i=0;i<A.length;i++)A[i]=Math.random()<.22?1:0;
+ gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,tL);gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,LW,LH,0,gl.RED,gl.UNSIGNED_BYTE,Lpix);}
+function layout(){measure();const d=Math.min(devicePixelRatio||1,2);cv.width=Math.round(VW*d);cv.height=Math.round(innerHeight*d);
+ VH=Math.max(200,Math.min(480,innerHeight*(1-pf)/1.4));$('h2').style.top=`calc(${pf*100}vh + 8px)`;$('h3').style.top=`calc(${pf*100}vh - 34px)`;$('h4').style.top=`${(pf+(1-pf)*.62)*100}vh`;}
+buildLife();layout();bedrock();
+let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{measure();if(Math.abs(VW/innerHeight-asp)/asp>.08)buildLife();layout()},200)});
+
+/* ---- life + sedimentation, one generation ---- */
+function step(F){
+ for(let y=0;y<LH;y++){const yu=mod(y-1,LH)*LW,yd=mod(y+1,LH)*LW,y0=y*LW;
+  for(let x=0;x<LW;x++){const xl=x?x-1:LW-1,xr=x===LW-1?0:x+1;
+   const n=(A[yu+xl]>0)+(A[yu+x]>0)+(A[yu+xr]>0)+(A[y0+xl]>0)+(A[y0+xr]>0)+(A[yd+xl]>0)+(A[yd+x]>0)+(A[yd+xr]>0);
+   const a=A[y0+x]>0;B[y0+x]=a?(n===2||n===3?1:0):(n===3?2:0);}}
+ [A,B]=[B,A];
+ if(gen%20===0&&phase!=='pf'&&phase!=='collapse'&&phase!=='breach'){let pop=0;for(let i=0;i<A.length;i+=7)pop+=A[i]>0;
+  if(pop*7<A.length*.012)for(let k=0;k<5;k++)seedPatch(Math.floor(Math.random()*LW),Math.floor(Math.random()*LH),9,.4)}
+ cnt.fill(0);brn.fill(0);
+ for(let y=cy-BAND;y<=cy+BAND;y++){const y0=mod(y,LH)*LW;for(let x=0;x<LW;x++){const v=A[y0+x];if(v){cnt[x]++;if(v===2)brn[x]++}}}
+ const ph=gen*.045,s=Math.round(F*5)*dir;
+ for(let x=0;x<SW;x++){let t=0;for(let k=-6;k<=6;k++)t+=h[mod(x+k,SW)];hs[x]=t/13}
+ for(let x=0;x<SW;x++){const k=mod(x-s,SW),c=cnt[k];
+  const cb=(cnt[mod(k-2,SW)]+2*cnt[mod(k-1,SW)]+3*c+2*cnt[mod(k+1,SW)]+cnt[mod(k+2,SW)])/9;
+  const low=Math.max(.3,Math.min(1.8,1-.18*(h[x]-hs[x])));
+  add(x,(.012+.36*Math.min(cb,4))*low*(phase==='cone'?.4:1),ph,38+40*Math.min(c,4)+Math.random()*14,0);}
+ if(F>.3){
+  for(let i=0;i<SW;i++){const x=dir>0?i:SW-1-i;
+   const er=Math.max(0,(F-.3)*(phase==='cone'?.15:.6)*(1+.5*Math.max(-1.5,Math.min(4,h[x]-hs[x]))));
+   h[x]-=er;load+=er;const dep=load*.06;load-=dep;add(x,dep,ph,232+Math.random()*22,0);}
+ }else if(load>.01){const dep=load*.2/SW,gr=120+Math.min(1,load/(SW*.5))*120;for(let x=0;x<SW;x++)add(x,dep,ph,gr,0);load*=.8;}
+ for(let p=0;p<4;p++)for(let x=0;x<SW;x++){const y=x===SW-1?0:x+1,d=h[x]-h[y];
+  if(d>1){const m=(d-1)*.5;h[x]-=m;add(y,m,ph,118,0)}else if(d<-1){const m=(-d-1)*.5;h[y]-=m;add(x,m,ph,118,0)}}
+ if(gen%100===0)mark(gen+'世代',0);
+ geo(F);
+ marks=marks.filter(m=>m.e<=h[XR]+.5);
+ gen++;
+}
+function wipe(x0,x1,p){for(let x=Math.max(0,x0);x<=Math.min(LW-1,x1);x++)for(let y=0;y<LH;y++)if(p>=1||Math.random()<p)A[y*LW+x]=0}
+function geo(F){
+ const ev=ASO[Math.min(ei,3)];
+ if(phase==='quiet'){erI*=.8;if(ei<4&&gen>=ev.g){mark('Aso-'+(ei+1),1);phase='pf';pt=0;front=0;xv=XC;let t=0;for(let x=0;x<SW;x++)t+=h[x];lvl=t/SW+2}}
+ else if(phase==='pf'){erI=1;const f0=front;front+=7;
+  for(let x=0;x<SW;x++){const d=Math.abs(x-XC);if((d>f0&&d<=front)||(f0===0&&d===0)){h[x]-=1.5;const tt=ev.T*(.8+.4*Math.random())+Math.max(0,lvl-h[x])*.85;add(x,tt*.15,ei*1.3,70,64);add(x,tt*.6,ei*1.3,205,64);add(x,tt*.25,ei*1.3,105,64)}}
+  wipe(XC-front,XC+front,1);
+  if(front>XC+8){phase='collapse';calR=ev.R;for(let x=0;x<SW;x++)dropRem[x]=ev.D*Math.max(0,Math.min(1,(ev.R-Math.abs(x-XC))/8))}}
+ else if(phase==='collapse'){erI*=.93;let any=false;
+  for(let x=0;x<SW;x++)if(dropRem[x]>=1){dropRem[x]--;any=true;const r0=sec32[x];for(let r=0;r<TH-1;r++)sec32[r*SW+x]=sec32[(r+1)*SW+x];sec32[(TH-1)*SW+x]=r0;h[x]--}
+  full=true;
+  if(!any){for(let i=0;i<A.length;i++)if(Math.random()<.14)A[i]=1;ei++;if(ei<4)phase='quiet';else{mark('カルデラ湖',1);phase='lake';pt=0;lake=Math.min(h[XC-calR-8],h[XC+calR+8])-4}}}
+ else if(phase==='lake'){erI*=.8;pt++;
+  for(let x=XC-calR;x<=XC+calR;x++)if(h[x]<lake-1)add(x,.22*Math.min(1,(lake-h[x])/20+.3),gen*.25,175,192);
+  if(pt>260){mark('決壊',1);phase='breach';pt=0;xb=XC-calR;let m=-1e9;for(let x=XC-calR-20;x<=XC-calR+4;x++)if(h[x]>m){m=h[x];xb=x}
+   rimL=m;floorL=1e9;for(let x=XC-calR+10;x<=XC+calR-10;x++)floorL=Math.min(floorL,h[x])}}
+ else if(phase==='breach'){pt++;let done=true;
+  for(let k=-16;k<=16;k++){const x=xb+k,tg=floorL+3+Math.abs(k)*(rimL-floorL-3)/16;if(h[x]>tg+.6){const er=Math.min(2.5,h[x]-tg);h[x]-=er;load+=er*.3;done=false}}
+  lake=Math.min(lake,h[xb]+1);
+  if(pt<30)for(let x=XC-calR+6;x<=XC+calR-6;x++){h[x]-=.2;load+=.08}
+  wipe(0,XC+calR,.35);
+  if((done&&pt>24)||pt>60){mark('火口丘',1);phase='cone';pt=0;ci=0;xv=XC-30;lake=-1e9}}
+ else if(phase==='cone'){pt++;const act=.25+1.3*Math.min(1,F);erI=Math.min(1,act*.55);
+  for(let x=0;x<SW;x++){const d=Math.abs(x-xv),a=act*.8*Math.exp(-d/15);if(a>.01)add(x,a,gen*.2,90,128);
+   if(gen%3===0){const b=.05*act*Math.exp(-d/90);if(b>.004)add(x,b,0,20,255)}}
+  if(pt>380||h[xv]>h[XC-calR-10]+50){pt=0;ci++;xv=XC+[-30,28,-6,46][ci%4]}}
+}
+const phaseName=()=>phase==='pf'?`Aso-${ei+1} 大火砕流`:phase==='collapse'?`Aso-${ei+1} カルデラ陥没`:phase==='lake'?'カルデラ湖':phase==='breach'?'湖の決壊':phase==='cone'?'中央火口丘の成長':ei?`Aso-${ei} の後`:'噴火前';
+
+/* ---- audio ---- */
+const au=$('au');let actx,an,fbin,recDest,bass=0,high=0,avg=.2,lastBeat=0,lastFlip=0;
+function initAudio(){if(actx)return;try{actx=new (window.AudioContext||window.webkitAudioContext)();
+ const src=actx.createMediaElementSource(au);an=actx.createAnalyser();an.fftSize=512;an.smoothingTimeConstant=.6;
+ recDest=actx.createMediaStreamDestination();src.connect(an);an.connect(actx.destination);src.connect(recDest);
+ fbin=new Uint8Array(an.frequencyBinCount);}catch(e){actx=null}}
+function readAudio(){if(!an||au.paused){bass*=.95;high*=.95;return}
+ an.getByteFrequencyData(fbin);let b=0,hh=0;for(let i=1;i<8;i++)b+=fbin[i];for(let i=40;i<120;i++)hh+=fbin[i];
+ bass=bass*.6+(b/7/255)*.4;high=high*.7+(hh/80/255)*.3;}
+
+/* ---- input ---- */
+let ptr=null;
+cv.addEventListener('pointerdown',e=>{ptr=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(ptr)ptr=[e.clientX,e.clientY]});
+const up=()=>ptr=null;cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+function touch(){if(!ptr)return;const x=(ptr[0]-VL)/VW,y=ptr[1]/innerHeight;
+ if(y<pf)seedPatch(Math.floor(x*LW),Math.floor((1-y/pf)*LH),2,.5);
+ else{const c=Math.floor(x*SW);for(let k=-9;k<=9;k++){const xx=mod(c+k,SW),er=1.1*Math.exp(-k*k/20);h[xx]-=er;load+=er}}}
+
+/* ---- ui ---- */
+const sSpd=$('sSpd'),sFlow=$('sFlow'),hud=[$('bar'),$('h1'),$('h2'),$('h3'),$('h4'),$('ticks')];
+for(let i=0;i<16;i++){const d=document.createElement('div');$('ticks').appendChild(d);TK.push(d)}
+const setPlay=()=>{$('bPlay').textContent=au.paused?'▶ 音':'❚❚ 音'};
+$('start').addEventListener('click',async()=>{$('start').remove();initAudio();try{if(actx)await actx.resume();await au.play()}catch(e){msg('音の再生が許可されませんでした')}setPlay();msg('上をなぞると種まき、下をなぞると削れます')});
+$('bPlay').onclick=async()=>{initAudio();try{if(actx)await actx.resume();au.paused?await au.play():au.pause()}catch(e){}setPlay()};
+$('bSeed').onclick=()=>seedPatch(Math.floor(Math.random()*LW),cy+Math.floor((Math.random()-.5)*20),9,.45);
+$('bFF').onclick=()=>{ff=ff===1?4:ff===4?16:1;$('bFF').textContent='▶▶ ×'+ff};
+$('bReset').onclick=()=>{buildLife();bedrock()};
+$('bImm').onclick=()=>{hud.forEach(e=>e.classList.add('off'));msg('ダブルタップ／Escで戻ります')};
+const show=()=>hud.forEach(e=>e.classList.remove('off'));
+addEventListener('keydown',e=>{if(e.key==='Escape')show()});
+let lastTap=0;cv.addEventListener('pointerup',()=>{const n=performance.now();if(n-lastTap<300)show();lastTap=n});
+let rec=null,chunks=[];
+$('bRec').onclick=()=>{
+ if(rec){rec.stop();return}
+ if(!window.MediaRecorder||!cv.captureStream){msg('このブラウザは録画に対応していません');return}
+ const st=cv.captureStream(30);if(recDest)recDest.stream.getAudioTracks().forEach(t=>st.addTrack(t));
+ const mt=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm'].find(t=>MediaRecorder.isTypeSupported(t))||'';
+ try{rec=new MediaRecorder(st,mt?{mimeType:mt,videoBitsPerSecond:8e6}:{})}catch(e){msg('録画を開始できませんでした');rec=null;return}
+ chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const mt2=rec.mimeType||'video/webm',u=URL.createObjectURL(new Blob(chunks,{type:mt2}));$('vid').src=u;$('dl').href=u;$('dl').download='liquid-strata.'+(mt2.includes('mp4')?'mp4':'webm');$('modal').classList.add('on');rec=null;$('bRec').textContent='● 録画';$('bRec').classList.remove('rec')};
+ rec.start(500);$('bRec').textContent='■ 停止';$('bRec').classList.add('rec');
+};
+$('bHelp').onclick=()=>$('help').classList.add('on');$('bHelpClose').onclick=()=>$('help').classList.remove('on');
+$('bClose').onclick=()=>{$('modal').classList.remove('on');$('vid').pause()};
+au.addEventListener('play',setPlay);au.addEventListener('pause',setPlay);
+
+/* ---- loop ---- */
+let last=performance.now(),acc=0,T=0,autoSeed=0,Fcur=0,Fpeak=0,Fshow=0,wasLow=true;
+function frame(now){
+ const dt=Math.min((now-last)/1000,.05);last=now;T+=dt;
+ readAudio();touch();
+ const playing=an&&!au.paused;avg=avg*.985+bass*.015;
+ let f=playing?Math.max(0,Math.min(1,(bass/(avg+.05)-1.02)*3.2)):Math.pow(Math.max(0,Math.sin(T*.45)),8);
+ Fcur=Math.min(1.5,f*sFlow.value/100);Fpeak=Math.max(Fpeak,Fcur);Fshow+=(Fcur-Fshow)*Math.min(1,dt*6);
+ if(Fcur<.12)wasLow=true;
+ if(Fcur>.35&&wasLow){wasLow=false;if(T-lastFlip>6){dir=-dir;lastFlip=T}
+  if(T-lastBeat>.5){lastBeat=T;seedPatch(Math.floor(Math.random()*LW),cy+Math.floor((Math.random()-.5)*LH*.6),6,.42)}}
+ acc+=dt*sSpd.value*(1+high*.8)*ff;let n=0;const t0=performance.now();
+ while(acc>=1&&n<2*ff&&performance.now()-t0<14){acc-=1;n++;
+  let F=Fpeak;if(ff>1){const a=gen*.035;F=Math.min(1.5,Math.pow(Math.max(0,Math.sin(a)),8)*sFlow.value/100);dir=Math.floor(a/6.2832)%2?1:-1}
+  lastF=F;step(F);Fpeak=Fcur;
+  if(gen%40===0)seedPatch(Math.floor(Math.random()*LW),cy+Math.floor((Math.random()-.5)*24),8,.4)}
+ if(acc>2*ff)acc=0;if(ff>1)Fshow=lastF;if(phase==='breach'){Fshow=1;dir=-1}
+ if(n){for(let i=0;i<Lpix.length;i++)Lpix[i]=A[i]===2?255:A[i]?128:0;
+  gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,tL);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,LW,LH,gl.RED,gl.UNSIGNED_BYTE,Lpix);
+  $('gen').textContent=gen;$('ph').textContent=phaseName();}
+ flush();
+ let mx=-1e9;for(let x=0;x<SW;x++)if(h[x]>mx)mx=h[x];
+ viewTop+=(mx+VH*.14-viewTop)*Math.min(1,dt*1.5*ff);const base=viewTop-VH;
+ for(let x=0;x<SW;x++)hrel[x]=h[x]-base;
+ {const top=pf*innerHeight,sh=(1-pf)*innerHeight,ys=[];let k=0;
+  for(const pass of [1,0])for(let i=marks.length-1;i>=0&&k<TK.length;i--){const m=marks[i];if(!!m.ev!==!!pass)continue;
+   const y=top+(1-(m.e-base)/VH)*sh;if(y<top+34||y>innerHeight-8||ys.some(v=>Math.abs(v-y)<15))continue;
+   ys.push(y);const d=TK[k++];d.style.display='block';d.style.top=y+'px';d.className=m.ev?'ev':'';if(d.textContent!==m.t)d.textContent=m.t}
+  for(;k<TK.length;k++)TK[k].style.display='none';}
+ gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,tH);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,SW,1,gl.RED,gl.FLOAT,hrel);
+ gl.viewport(0,0,cv.width,cv.height);
+ gl.uniform1i(U('uSec'),0);gl.uniform1i(U('uH'),1);gl.uniform1i(U('uLife'),2);
+ gl.uniform2f(U('uRes'),cv.width,cv.height);gl.uniform2f(U('uLRes'),LW,LH);gl.uniform2f(U('uView'),mod(base,TH),VH);
+ gl.uniform2f(U('uBand'),(cy-BAND)/LH,(cy+BAND+1)/LH);
+ gl.uniform1f(U('uVent'),xv/SW);gl.uniform1f(U('uFront'),phase==='pf'?front/SW:phase==='collapse'?1:0);gl.uniform1f(U('uEr'),erI);
+ gl.uniform1f(U('uLake'),lake-base);gl.uniform2f(U('uCal'),XC/SW,(calR+2)/SW);
+ gl.uniform1f(U('uPf'),pf);gl.uniform1f(U('uTH'),TH);gl.uniform1f(U('uSW'),SW);gl.uniform1f(U('uT'),T);
+ gl.uniform1f(U('uF'),Math.min(1,Fshow));gl.uniform1f(U('uDir'),dir);gl.uniform1f(U('uHigh'),high);
+ gl.drawArrays(gl.TRIANGLES,0,3);
+ requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>
