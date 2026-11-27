@@ -112,7 +112,7 @@ input[type=range]{width:96px;accent-color:#ddd}
 </dl>
 <button id="bHelpClose">閉じる</button>
 </div></div>
-<div id="modal"><div><video id="vid" controls playsinline></video><p>保存できないときは、動画を長押し／右クリックしてください</p><a id="dl" download="liquid-strata.mp4" style="display:inline-block;margin-right:10px;color:#e9e6df;border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:9px 16px;text-decoration:none">保存</a><button id="bClose">閉じる</button></div></div>
+<div id="modal"><div><video id="vid" controls playsinline></video><p id="recNote"></p><button id="bSave" style="margin-right:10px">保存</button><button id="bClose">閉じる</button></div></div>
 </div>
 <audio id="au" src="music.mp3" loop preload="auto"></audio>
 
@@ -373,18 +373,37 @@ $('bImm').onclick=()=>{hud.forEach(e=>e.classList.add('off'));msg('ダブルタ�
 const show=()=>hud.forEach(e=>e.classList.remove('off'));
 addEventListener('keydown',e=>{if(e.key==='Escape')show()});
 let lastTap=0;cv.addEventListener('pointerup',()=>{const n=performance.now();if(n-lastTap<300)show();lastTap=n});
-let rec=null,chunks=[];
+let rec=null,chunks=[],rc=null,rx=null,TP=[],savB=null,savU='',savN='',savT='',dlCap;
+const getDl=()=>dlCap!==undefined?dlCap:(dlCap=(window.claude&&typeof claude.use==='function')?claude.use('downloads').catch(()=>null):Promise.resolve(null));
+$('bSave').onclick=async()=>{if(!savB)return;const note=t=>{$('recNote').textContent=t};
+ if(window.claude&&typeof claude.use==='function'){note('保存の準備中…');const d=await getDl();
+  if(d){try{await d.save({filename:savN,data:savB});note('保存しました')}catch(e){const c=e&&e.code;
+    note(c==='declined'?'保存をやめました':c==='host_unavailable'?'このアプリからは保存できません。ブラウザで開くと保存できます':c==='too_large'?'ファイルが大きすぎます。短く録り直してください':c==='rate_limited'?'少し待ってからもう一度押してください':'保存できませんでした（'+(c||'不明')+'）')}return}}
+ const ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ if(ios&&navigator.canShare){try{const f=new File([savB],savN,{type:savT});if(navigator.canShare({files:[f]})){await navigator.share({files:[f]});return}}catch(e){if(e&&e.name==='AbortError')return}}
+ const a=document.createElement('a');a.href=savU;a.download=savN;document.body.appendChild(a);a.click();a.remove();
+ note('保存を始めました。始まらないときは、ChromeやSafariでこのページを開き直してください')};
+const RTYPES=['video/mp4;codecs="avc1.42E01E,mp4a.40.2"','video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1.42E01E','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+function recFrame(){if(!rec)return;const W=720,H=1280;rx.fillStyle='#000';rx.fillRect(0,0,W,H);
+ const s=Math.min(W/cv.width,H/cv.height),w=cv.width*s,hh=cv.height*s,x0=(W-w)/2,y0=(H-hh)/2,k=hh/innerHeight;
+ rx.drawImage(cv,x0,y0,w,hh);rx.textBaseline='middle';
+ const tag=(t,x,y,col,right,fs)=>{rx.font=`${Math.round(fs*k)}px "Zen Kaku Gothic New","Hiragino Sans","Noto Sans CJK JP",sans-serif`;const m=rx.measureText(t).width,p=6*k,bx=right?x-m-2*p:x;
+  rx.fillStyle='rgba(0,0,0,.6)';rx.fillRect(bx,y-fs*.75*k,m+2*p,fs*1.5*k);rx.fillStyle=col;rx.fillText(t,bx+p,y+k)};
+ tag(`第 ${gen} 世代 ― ${phaseName()}`,x0+10*k,y0+(pf*innerHeight+22)*k,'#f1ede4',false,15);
+ for(const m of TP)tag(m.t,x0+w,y0+m.y*k,m.ev?'#ffb27a':'#e9e6df',true,11);
+ tag('LIQUID STRATA ― 積もる生命',x0+10*k,y0+hh-22*k,'#f1ede4',false,14);}
 $('bRec').onclick=()=>{
  if(rec){rec.stop();return}
- if(!window.MediaRecorder||!cv.captureStream){msg('このブラウザは録画に対応していません');return}
- const st=cv.captureStream(30);if(recDest)recDest.stream.getAudioTracks().forEach(t=>st.addTrack(t));
- const mt=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm'].find(t=>MediaRecorder.isTypeSupported(t))||'';
- try{rec=new MediaRecorder(st,mt?{mimeType:mt,videoBitsPerSecond:8e6}:{})}catch(e){msg('録画を開始できませんでした');rec=null;return}
+ if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){msg('このブラウザは録画に対応していません');return}
+ rc=document.createElement('canvas');rc.width=720;rc.height=1280;rx=rc.getContext('2d');rc.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none';document.body.appendChild(rc);
+ const st=rc.captureStream(30);if(recDest)recDest.stream.getAudioTracks().forEach(t=>st.addTrack(t));
+ const mt=RTYPES.find(t=>MediaRecorder.isTypeSupported(t))||'';
+ try{rec=new MediaRecorder(st,mt?{mimeType:mt,videoBitsPerSecond:8e6,audioBitsPerSecond:128e3}:{})}catch(e){msg('録画を開始できませんでした');rec=null;return}
  chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
- rec.onstop=()=>{const mt2=rec.mimeType||'video/webm',u=URL.createObjectURL(new Blob(chunks,{type:mt2}));$('vid').src=u;$('dl').href=u;$('dl').download='liquid-strata.'+(mt2.includes('mp4')?'mp4':'webm');$('modal').classList.add('on');rec=null;$('bRec').textContent='● 録画';$('bRec').classList.remove('rec')};
- rec.start(500);$('bRec').textContent='■ 停止';$('bRec').classList.add('rec');
+ rec.onstop=()=>{const webm=!(rec.mimeType||mt).includes('mp4');{const mp4=(rec.mimeType||mt).includes('mp4');savT=mp4?'video/mp4':'video/webm';savN='liquid-strata.'+(mp4?'mp4':'webm');savB=new Blob(chunks,{type:savT});savU=URL.createObjectURL(savB);$('vid').src=savU}$('modal').classList.add('on');rec=null;if(rc)rc.remove();$('bRec').textContent='● 録画';$('bRec').classList.remove('rec');
+  $('recNote').textContent=webm?'このブラウザではWebM形式で保存されます（XにはMP4が必要です）':'縦長 720×1280・MP4・音入り'};
+ getDl();rec.start();$('bRec').textContent='■ 停止';$('bRec').classList.add('rec');
 };
-$('bHelp').onclick=()=>$('help').classList.add('on');$('bHelpClose').onclick=()=>$('help').classList.remove('on');
 $('bClose').onclick=()=>{$('modal').classList.remove('on');$('vid').pause()};
 au.addEventListener('play',setPlay);au.addEventListener('pause',setPlay);
 
@@ -412,11 +431,11 @@ function frame(now){
  let mx=-1e9;for(let x=0;x<SW;x++)if(h[x]>mx)mx=h[x];
  viewTop+=(mx+VH*.14-viewTop)*Math.min(1,dt*1.5*ff);const base=viewTop-VH;
  for(let x=0;x<SW;x++)hrel[x]=h[x]-base;
- {const top=pf*innerHeight,sh=(1-pf)*innerHeight,ys=[];let k=0;
+ {const top=pf*innerHeight,sh=(1-pf)*innerHeight,ys=[],tp=[];let k=0;
   for(const pass of [1,0])for(let i=marks.length-1;i>=0&&k<TK.length;i--){const m=marks[i];if(!!m.ev!==!!pass)continue;
    const y=top+(1-(m.e-base)/VH)*sh;if(y<top+34||y>innerHeight-8||ys.some(v=>Math.abs(v-y)<15))continue;
-   ys.push(y);const d=TK[k++];d.style.display='block';d.style.top=y+'px';d.className=m.ev?'ev':'';if(d.textContent!==m.t)d.textContent=m.t}
-  for(;k<TK.length;k++)TK[k].style.display='none';}
+   ys.push(y);tp.push({y,t:m.t,ev:m.ev});const d=TK[k++];d.style.display='block';d.style.top=y+'px';d.className=m.ev?'ev':'';if(d.textContent!==m.t)d.textContent=m.t}
+  for(;k<TK.length;k++)TK[k].style.display='none';TP=tp;}
  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,tH);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,SW,1,gl.RED,gl.FLOAT,hrel);
  gl.viewport(0,0,cv.width,cv.height);
  gl.uniform1i(U('uSec'),0);gl.uniform1i(U('uH'),1);gl.uniform1i(U('uLife'),2);
@@ -427,6 +446,7 @@ function frame(now){
  gl.uniform1f(U('uPf'),pf);gl.uniform1f(U('uTH'),TH);gl.uniform1f(U('uSW'),SW);gl.uniform1f(U('uT'),T);
  gl.uniform1f(U('uF'),Math.min(1,Fshow));gl.uniform1f(U('uDir'),dir);gl.uniform1f(U('uHigh'),high);
  gl.drawArrays(gl.TRIANGLES,0,3);
+ recFrame();
  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
